@@ -2683,6 +2683,10 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
     run_times_c = np.zeros(len(gains))
     postproc_times_c = np.zeros(len(gains))
 
+    pre_fps_lst = []
+    post_fps_lst = []
+
+
     # Find fixed points of cont Hopnet at various gain values
     if dynamic:
         max_eval = np.max(np.linalg.eigvalsh(hn.W))
@@ -2697,10 +2701,10 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
         if traversal:
             pre_pt = utils.process_time()
             pre_c = time.clock()
-            fps, _ = rftpp.run_solver(hn.W*g, post_process=False)
+            fps_pre, _ = rftpp.run_solver(hn.W*g, post_process=False)
             post1_pt = utils.process_time()
             post1_c = time.clock()
-            fps, _ = rftpp.post_process_fxpts(hn.W*g, fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            fps, _ = rftpp.post_process_fxpts(hn.W*g, fps_pre, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
             post2_pt = utils.process_time()
             post2_c = time.clock()
 
@@ -2708,14 +2712,16 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
             pre_pt = utils.process_time()
             pre_c = time.clock()
             if times is not None:
-                fps, _ = rftpp.baseline_solver(hn.W*g, timeout=times[i])
+                fps_pre, _ = rftpp.baseline_solver(hn.W*g, timeout=times[i])
             else:
-                fps, _ = rftpp.baseline_solver(hn.W*g)
+                fps_pre, _ = rftpp.baseline_solver(hn.W*g)
             post1_pt = utils.process_time()
             post1_c = time.clock()
-            fps, _ = rftpp.post_process_fxpts(hn.W*g, fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            fps, _ = rftpp.post_process_fxpts(hn.W*g, fps_pre, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
             post2_pt = utils.process_time()
             post2_c = time.clock()
+        pre_fps_lst.append(fps_pre)
+        post_fps_lst.append(fps)
 
         run_times_pt[i] = post1_pt-pre_pt
         postproc_times_pt[i] = post2_pt-post1_pt
@@ -2781,7 +2787,8 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
             num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
-            run_times_pt,postproc_times_pt,run_times_c,postproc_times_c)
+            run_times_pt,postproc_times_pt,run_times_c,postproc_times_c,
+            pre_fps_lst, post_fps_lst)
     return res
 
 def test_s_vs_c_stability_wrapper4(args):
@@ -2814,7 +2821,10 @@ def test_s_vs_c_stability_full4(n=1, shape=(100,3), gains=[1.0,10.0,50.0,100.0],
     postproc_times_pt = np.zeros((n,len(gains)))
     run_times_c = np.zeros((n,len(gains)))
     postproc_times_c = np.zeros((n,len(gains)))
+    pre_fps_lst = []
+    post_fps_lst = []
     data_lst = []
+
 
 
     pool = mp.Pool(16)
@@ -2843,13 +2853,17 @@ def test_s_vs_c_stability_full4(n=1, shape=(100,3), gains=[1.0,10.0,50.0,100.0],
         postproc_times_pt[i] = res[i][15]
         run_times_c[i] = res[i][16]
         postproc_times_c[i] = res[i][17]
-        data_lst.append(res[i][18])
+        pre_fps_lst.append(res[i][18])
+        post_fps_lst.append(res[i][19])
+        data_lst.append(res[i][20])
+
 
     res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
             num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
-            run_times_pt, postproc_times_pt, run_times_c, postproc_times_c, data_lst)
+            run_times_pt, postproc_times_pt, run_times_c, postproc_times_c,
+            pre_fps_lst, post_fps_lst, data_lst)
     return res
 
 def test_timing_tanh_process(args):
