@@ -2785,13 +2785,17 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
     return res
 
 def test_s_vs_c_stability_wrapper4(args):
-    shape, gains, dynamic, traversal, tol, times = args
+    shape, gains, dynamic, traversal, tol, times, data = args
     np.random.seed()
-    data = gd.get_random_discrete(*shape)
+    if data is None:
+        data = gd.get_random_discrete(*shape)
     res = test_standard_vs_cont_stability4(data, gains, dynamic, traversal, tol, times)
     return tuple(list(res) + [data])
 
-def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=False, traversal=True, tol=1e-6, times=None):
+def test_s_vs_c_stability_full4(n=1, shape=(100,3), gains=[1.0,10.0,50.0,100.0], dynamic=False, traversal=True, tol=1e-6, times=None, datasets=None):
+    if datasets is not None:
+        shape = datasets[0].shape
+        n = len(datasets)
     stable_match_data = np.zeros((n,len(gains)), dtype=np.int_)
     unstable_match_data = np.zeros((n,len(gains)), dtype=np.int_)
     stable_nmatch_data = np.zeros((n,len(gains)), dtype=np.int_)
@@ -2814,7 +2818,11 @@ def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=F
 
 
     pool = mp.Pool(16)
-    res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol,times)]*n)
+    if datasets is None:
+        res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol,times,None)]*n)
+    else:
+        res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol,times,d) for d in datasets])
+
 
     for i in xrange(n):
         stable_match_data[i] = res[i][0]
