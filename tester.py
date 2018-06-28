@@ -3066,12 +3066,9 @@ def test_mems_fps_tanh(n=1, size=100, mems=[1,3,5,7,9,11,13], gain=10, traversal
     num_matched_hn_fps_by_all = np.zeros((n,len(mems)), dtype=np.int_)
     num_matched_hn_fps_by_stable = np.zeros((n,len(mems)), dtype=np.int_)
     num_matched_hn_fps_by_unstable = np.zeros((n,len(mems)), dtype=np.int_)
-    run_times_pt = np.zeros((n,len(mems)))
-    postproc_times_pt = np.zeros((n,len(mems)))
-    run_times_c = np.zeros((n,len(mems)))
-    postproc_times_c = np.zeros((n,len(mems)))
-    pre_fps_lst = []
-    post_fps_lst = []
+    run_times = np.zeros((n,len(mems)))
+    postproc_times = np.zeros((n,len(mems)))
+
 
 
     pool = mp.Pool(16)
