@@ -2918,3 +2918,188 @@ def test_timing_tanh(n, shape=(100,3), gains=[1,5,10,15,20,25,30,35,40,45,50,55,
         postproc_times_c[i,g] = postproc_c
 
     return run_times_pt,postproc_times_pt,run_times_c,postproc_times_c
+
+
+
+def test_mems_fps_tanh_process(args):
+    data_lst, gain, traversal, tol, times = args
+
+    def arr_to_bit_string(arr):
+        s = ''
+        for e in np.sign(arr):
+            if e > 0:
+                s += '1'
+            else:
+                s += '0'
+        return s
+   
+    hn = chc.Hopnet(data_lst[0].shape[0], gain=gain)
+
+    stable_match_data = np.zeros(len(data_lst), dtype=np.int_)
+    unstable_match_data = np.zeros(len(data_lst), dtype=np.int_)
+    stable_nmatch_data = np.zeros(len(data_lst), dtype=np.int_)
+    unstable_nmatch_data = np.zeros(len(data_lst), dtype=np.int_)
+    stable_match_hn_fps = np.zeros(len(data_lst), dtype=np.int_)
+    unstable_match_hn_fps = np.zeros(len(data_lst), dtype=np.int_)
+    stable_nmatch_hn_fps = np.zeros(len(data_lst), dtype=np.int_)
+    unstable_nmatch_hn_fps = np.zeros(len(data_lst), dtype=np.int_)
+    num_matched_data_by_all = np.zeros(len(data_lst), dtype=np.int_)
+    num_matched_data_by_stable = np.zeros(len(data_lst), dtype=np.int_)
+    num_matched_data_by_unstable = np.zeros(len(data_lst), dtype=np.int_)
+    num_matched_hn_fps_by_all = np.zeros(len(data_lst), dtype=np.int_)
+    num_matched_hn_fps_by_stable = np.zeros(len(data_lst), dtype=np.int_)
+    num_matched_hn_fps_by_unstable = np.zeros(len(data_lst), dtype=np.int_)
+
+    run_times = np.zeros(len(data_lst))
+    postproc_times = np.zeros(len(data_lst))
+
+
+
+    for i,data in enumerate(data_lst):
+        hn.learn(data)
+
+        if traversal:
+            pre = time.clock()
+            fps_pre, _ = rftpp.run_solver(hn.W*gain, post_process=False)
+            post1 = time.clock()
+            fps, _ = rftpp.post_process_fxpts(hn.W*gain, fps_pre, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            post2 = time.clock()
+
+        else:
+            pre = time.clock()
+            if times is not None:
+                fps_pre, _ = rftpp.baseline_solver(hn.W*gain, timeout=times[i])
+            else:
+                fps_pre, _ = rftpp.baseline_solver(hn.W*gain)
+            post1 = time.clock()
+            fps, _ = rftpp.post_process_fxpts(hn.W*gain, fps_pre, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            post2 = time.clock()
+
+        run_times[i] = post1-pre
+        postproc_times[i] = post2-post1
+
+        sgn_fps = np.sign(fps)
+
+        cur_matched_data_by_all = set()
+        cur_matched_data_by_stable = set()
+        cur_matched_data_by_unstable = set()
+        cur_matched_hn_fps_by_all = set()
+        cur_matched_hn_fps_by_stable = set()
+        cur_matched_hn_fps_by_unstable = set()
+
+        for j in xrange(sgn_fps.shape[1]):
+            fp_str = arr_to_bit_string(sgn_fps[:,j])
+
+            if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(fps[:,j])))):
+                if np.allclose(np.sign(np.dot(hn.W,sgn_fps[:,j])), sgn_fps[:,j], rtol=0, atol=tol): # What about 0?
+                    stable_match_hn_fps[i] += 1
+
+                    cur_matched_hn_fps_by_all.add(fp_str)
+                    cur_matched_hn_fps_by_stable.add(fp_str)
+                else:
+                    stable_nmatch_hn_fps[i] += 1
+
+                if any(np.allclose(np.sign(data[:,k]), sgn_fps[:,j], rtol=0, atol=tol) for k in xrange(data.shape[1])):
+                    stable_match_data[i] += 1
+
+                    cur_matched_data_by_all.add(fp_str)
+                    cur_matched_data_by_stable.add(fp_str)
+                else:
+                    stable_nmatch_data[i] += 1                    
+
+            else:
+                if np.allclose(np.sign(np.dot(hn.W,sgn_fps[:,j])), sgn_fps[:,j], rtol=0, atol=tol): # What about 0?
+                    unstable_match_hn_fps[i] += 1
+
+                    cur_matched_hn_fps_by_all.add(fp_str)
+                    cur_matched_hn_fps_by_unstable.add(fp_str)
+                else:
+                    unstable_nmatch_hn_fps[i] += 1
+
+                if any(np.allclose(np.sign(data[:,k]), sgn_fps[:,j], rtol=0, atol=tol) for k in xrange(data.shape[1])):
+                    unstable_match_data[i] += 1
+
+                    cur_matched_data_by_all.add(fp_str)
+                    cur_matched_data_by_unstable.add(fp_str)
+                else:
+                    unstable_nmatch_data[i] += 1     
+
+        num_matched_data_by_all[i] = len(cur_matched_data_by_all)
+        num_matched_data_by_stable[i] = len(cur_matched_data_by_stable)
+        num_matched_data_by_unstable[i] = len(cur_matched_data_by_unstable)
+        num_matched_hn_fps_by_all[i] = len(cur_matched_hn_fps_by_all)
+        num_matched_hn_fps_by_stable[i] = len(cur_matched_hn_fps_by_stable)
+        num_matched_hn_fps_by_unstable[i] = len(cur_matched_hn_fps_by_unstable)
+        
+    res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
+            stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
+            num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
+            num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
+            run_times,postproc_times)
+    return res
+
+
+def test_mems_fps_tanh(n=1, size=100, mems=[1,3,5,7,9,11,13], gain=10, traversal=True, tol=1e-6, times=None, datasets=None):
+    if datasets is not None: # Datasets should be list[list[np.array(N x d)]] where 1st axis is iterations, 2nd is mems
+        size = datasets[0][0].shape[0]
+        mems = [datasets[0][i].shape[1] for i in xrange(len(datasets[0]))]
+        n = len(datasets)
+    else:
+        datasets = []
+        for i in xrange(n):
+            cur_datasets = []
+            for m in mems:
+                cur_datasets.append(gd.get_random_discrete(size,m))
+            datasets.append(cur_datasets)
+
+    stable_match_data = np.zeros((n,len(mems)), dtype=np.int_)
+    unstable_match_data = np.zeros((n,len(mems)), dtype=np.int_)
+    stable_nmatch_data = np.zeros((n,len(mems)), dtype=np.int_)
+    unstable_nmatch_data = np.zeros((n,len(mems)), dtype=np.int_)
+    stable_match_hn_fps = np.zeros((n,len(mems)), dtype=np.int_)
+    unstable_match_hn_fps = np.zeros((n,len(mems)), dtype=np.int_)
+    stable_nmatch_hn_fps = np.zeros((n,len(mems)), dtype=np.int_)
+    unstable_nmatch_hn_fps = np.zeros((n,len(mems)), dtype=np.int_)
+    num_matched_data_by_all = np.zeros((n,len(mems)), dtype=np.int_)
+    num_matched_data_by_stable = np.zeros((n,len(mems)), dtype=np.int_)
+    num_matched_data_by_unstable = np.zeros((n,len(mems)), dtype=np.int_)
+    num_matched_hn_fps_by_all = np.zeros((n,len(mems)), dtype=np.int_)
+    num_matched_hn_fps_by_stable = np.zeros((n,len(mems)), dtype=np.int_)
+    num_matched_hn_fps_by_unstable = np.zeros((n,len(mems)), dtype=np.int_)
+    run_times_pt = np.zeros((n,len(mems)))
+    postproc_times_pt = np.zeros((n,len(mems)))
+    run_times_c = np.zeros((n,len(mems)))
+    postproc_times_c = np.zeros((n,len(mems)))
+    pre_fps_lst = []
+    post_fps_lst = []
+
+
+    pool = mp.Pool(16)
+    res = pool.map(test_mems_fps_tanh_process, [(d,gain,traversal,tol,times) for d in datasets])
+
+
+    for i in xrange(n):
+        stable_match_data[i] = res[i][0]
+        unstable_match_data[i] = res[i][1]
+        stable_nmatch_data[i] = res[i][2]
+        unstable_nmatch_data[i] = res[i][3]
+        stable_match_hn_fps[i] = res[i][4]
+        unstable_match_hn_fps[i] = res[i][5]
+        stable_nmatch_hn_fps[i] = res[i][6]
+        unstable_nmatch_hn_fps[i] = res[i][7]
+        num_matched_data_by_all[i] = res[i][8]
+        num_matched_data_by_stable[i] = res[i][9]
+        num_matched_data_by_unstable[i] = res[i][10]
+        num_matched_hn_fps_by_all[i] = res[i][11]
+        num_matched_hn_fps_by_stable[i] = res[i][12]
+        num_matched_hn_fps_by_unstable[i] = res[i][13]
+        run_times[i] = res[i][14]
+        postproc_times[i] = res[i][15]
+
+
+    res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
+            stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
+            num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
+            num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
+            run_times, postproc_times, datasets)
+    return res
