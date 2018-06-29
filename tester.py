@@ -2922,7 +2922,7 @@ def test_timing_tanh(n, shape=(100,3), gains=[1,5,10,15,20,25,30,35,40,45,50,55,
 
 
 def test_mems_fps_tanh_process(args):
-    data_lst, gain, traversal, tol, times = args
+    data_lst, gain, dynamic, traversal, tol, times = args
 
     def arr_to_bit_string(arr):
         s = ''
@@ -2933,7 +2933,7 @@ def test_mems_fps_tanh_process(args):
                 s += '0'
         return s
    
-    hn = chc.Hopnet(data_lst[0].shape[0], gain=gain)
+    hn = chc.Hopnet(data_lst[0].shape[0])
 
     stable_match_data = np.zeros(len(data_lst), dtype=np.int_)
     unstable_match_data = np.zeros(len(data_lst), dtype=np.int_)
@@ -2952,27 +2952,35 @@ def test_mems_fps_tanh_process(args):
 
     run_times = np.zeros(len(data_lst))
     postproc_times = np.zeros(len(data_lst))
+    gains = np.zeros(len(data_lst))
 
 
 
     for i,data in enumerate(data_lst):
         hn.learn(data)
+        if dynamic:
+            max_eval = np.max(np.linalg.eigvalsh(hn.W))
+            hn.gain = gain/max_eval
+        else:
+            hn.gain = gain
+        gains[i] = hn.gain
+
 
         if traversal:
             pre = time.clock()
-            fps_pre, _ = rftpp.run_solver(hn.W*gain, post_process=False)
+            fps_pre, _ = rftpp.run_solver(hn.W*hn.gain, post_process=False)
             post1 = time.clock()
-            fps, _ = rftpp.post_process_fxpts(hn.W*gain, fps_pre, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            fps, _ = rftpp.post_process_fxpts(hn.W*hn.gain, fps_pre, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
             post2 = time.clock()
 
         else:
             pre = time.clock()
             if times is not None:
-                fps_pre, _ = rftpp.baseline_solver(hn.W*gain, timeout=times[i])
+                fps_pre, _ = rftpp.baseline_solver(hn.W*hn.gain, timeout=times[i])
             else:
-                fps_pre, _ = rftpp.baseline_solver(hn.W*gain)
+                fps_pre, _ = rftpp.baseline_solver(hn.W*hn.gain)
             post1 = time.clock()
-            fps, _ = rftpp.post_process_fxpts(hn.W*gain, fps_pre, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            fps, _ = rftpp.post_process_fxpts(hn.W*hn.gain, fps_pre, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
             post2 = time.clock()
 
         run_times[i] = post1-pre
@@ -3035,11 +3043,11 @@ def test_mems_fps_tanh_process(args):
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
             num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
-            run_times,postproc_times)
+            run_times,postproc_times,gains)
     return res
 
 
-def test_mems_fps_tanh(n=1, size=100, mems=[1,3,5,7,9,11,13], gain=10, traversal=True, tol=1e-6, times=None, datasets=None):
+def test_mems_fps_tanh(n=1, size=100, mems=[1,3,5,7,9,11,13], gain=10, dynamic=False, traversal=True, tol=1e-6, times=None, datasets=None):
     if datasets is not None: # Datasets should be list[list[np.array(N x d)]] where 1st axis is iterations, 2nd is mems
         size = datasets[0][0].shape[0]
         mems = [datasets[0][i].shape[1] for i in xrange(len(datasets[0]))]
@@ -3068,11 +3076,12 @@ def test_mems_fps_tanh(n=1, size=100, mems=[1,3,5,7,9,11,13], gain=10, traversal
     num_matched_hn_fps_by_unstable = np.zeros((n,len(mems)), dtype=np.int_)
     run_times = np.zeros((n,len(mems)))
     postproc_times = np.zeros((n,len(mems)))
+    gains = np.zeros((n,len(mems)))
 
 
 
     pool = mp.Pool(16)
-    res = pool.map(test_mems_fps_tanh_process, [(d,gain,traversal,tol,times) for d in datasets])
+    res = pool.map(test_mems_fps_tanh_process, [(d,gain,dynamic,traversal,tol,times) for d in datasets])
 
 
     for i in xrange(n):
@@ -3092,11 +3101,12 @@ def test_mems_fps_tanh(n=1, size=100, mems=[1,3,5,7,9,11,13], gain=10, traversal
         num_matched_hn_fps_by_unstable[i] = res[i][13]
         run_times[i] = res[i][14]
         postproc_times[i] = res[i][15]
+        gains[i] = res[i][16]
 
 
     res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
             num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
-            run_times, postproc_times, datasets)
+            run_times, postproc_times, gains,datasets)
     return res
