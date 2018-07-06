@@ -3110,3 +3110,94 @@ def test_mems_fps_tanh(n=1, size=100, mems=[1,3,5,7,9,11,13], gain=10, dynamic=F
             num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
             run_times, postproc_times, gains,datasets)
     return res
+
+def test_grid_trav_vs_base_process(args):
+    i, s, m, g = args
+    np.random.seed()
+
+    data = gd.get_random_discrete(s,m)
+    hn = chc.Hopnet(s, gain=g)
+    hn.learn(data)
+
+
+    t_pre = time.clock()
+    t_fps, _ = rftpp.run_solver(hn.W*hn.gain, post_process=False)
+    t_post1 = time.clock()
+    t_fps, _ = rftpp.post_process_fxpts(hn.W*hn.gain, t_fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+    t_post2 = time.clock()
+
+    t_runtime = t_post1 - t_pre
+    t_posttime = t_post2 - t_post1
+
+    b_pre = time.clock()
+    b_fps, _ = rftpp.baseline_solver(hn.W*hn.gain, timeout=t_runtime)
+    b_post1 = time.clock()
+    b_fps, _ = rftpp.post_process_fxpts(hn.W*hn.gain, b_fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+    b_post2 = time.clock()
+
+    b_runtime = b_post1 - b_pre
+    b_posttime = b_post2 - b_post1
+
+    t_stable = 0
+    t_unstable = 0
+    for j in xrange(t_fps.shape[1]):
+        if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(t_fps[:,j])))):
+            t_stable += 1
+        else:
+            t_unstable += 1
+
+    b_stable = 0
+    b_unstable = 0
+    for j in xrange(b_fps.shape[1]):
+        if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(b_fps[:,j])))):
+            b_stable += 1
+        else:
+            b_unstable += 1
+
+    return args, \
+        t_stable, b_stable, t_unstable, b_unstable, \
+        t_runtime, b_runtime, t_posttime, b_posttime,
+        data, t_fps, b_fps
+
+def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(2,31,2)), gains=[1]+list(xrange(5,76,5))):
+    stable_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
+    stable_base = np.zeros((n, len(sizes), len(mems), len(gains)))
+    unstable_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
+    unstable_base = np.zeros((n, len(sizes), len(mems), len(gains)))
+
+    runtime_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
+    runtime_base = np.zeros((n, len(sizes), len(mems), len(gains)))
+    posttime_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
+    posttime_base = np.zeros((n, len(sizes), len(mems), len(gains)))
+
+    data_lst = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
+    fps_trav = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
+    fps_base = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
+
+    pool = mp.Pool(16)
+    res = pool.map(test_grid_trav_vs_base_process, [(i,s,m,g) for i,s,m,g in it.product(xrange(n), sizes, mems, gains)])
+
+    for r in res:
+        i,s,m,g = r[0]
+        s = sizes.index(s)
+        m = sizes.index(m)
+        g = sizes.index(g)
+
+        stable_trav[i,s,m,g] = r[1]
+        stable_base[i,s,m,g] = r[2]
+        unstable_trav[i,s,m,g] = r[3]
+        unstable_base[i,s,m,g] = r[4]
+        runtime_trav[i,s,m,g] = r[5]
+        runtime_base[i,s,m,g] = r[6]
+        posttime_trav[i,s,m,g] = r[7]
+        posttime_base[i,s,m,g] = r[8]
+
+        data_lst[i][s][m][g] = r[9]
+        fps_trav[i][s][m][g] = r[10]
+        fps_base[i][s][m][g] = r[11]
+
+    return stable_trav,stable_base,unstable_trav,unstable_base, \
+            runtime_trav,runtime_base,posttime_trav,posttime_base, \
+            data_lst,fps_trav,fps_base
+
+
