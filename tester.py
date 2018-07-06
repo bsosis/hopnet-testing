@@ -3156,7 +3156,7 @@ def test_grid_trav_vs_base_process(args):
 
     return args, \
         t_stable, b_stable, t_unstable, b_unstable, \
-        t_runtime, b_runtime, t_posttime, b_posttime,
+        t_runtime, b_runtime, t_posttime, b_posttime, \
         data, t_fps, b_fps
 
 def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(2,31,2)), gains=[1]+list(xrange(5,76,5))):
