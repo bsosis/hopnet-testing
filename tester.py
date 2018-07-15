@@ -3159,7 +3159,7 @@ def test_grid_trav_vs_base_process(args):
         t_runtime, b_runtime, t_posttime, b_posttime, \
         data, t_fps, b_fps
 
-def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(2,31,2)), gains=[1]+list(xrange(5,76,5))):
+def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(1,29,3)), gains=[1]+list(xrange(5,36,5))):
     stable_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
     stable_base = np.zeros((n, len(sizes), len(mems), len(gains)))
     unstable_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
