@@ -3156,8 +3156,8 @@ def test_grid_trav_vs_base_process(args):
 
     return args, \
         t_stable, b_stable, t_unstable, b_unstable, \
-        t_runtime, b_runtime, t_posttime, b_posttime, \
-        data, t_fps, b_fps
+        t_runtime, b_runtime, t_posttime, b_posttime #, \
+        # data, t_fps, b_fps
 
 def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(1,29,3)), gains=[1]+list(xrange(5,36,5))):
     stable_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
@@ -3170,9 +3170,9 @@ def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(1,29,3)), gai
     posttime_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
     posttime_base = np.zeros((n, len(sizes), len(mems), len(gains)))
 
-    data_lst = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
-    fps_trav = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
-    fps_base = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
+    # data_lst = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
+    # fps_trav = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
+    # fps_base = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
 
     pool = mp.Pool(16)
     res = pool.map(test_grid_trav_vs_base_process, [(i,s,m,g) for i,s,m,g in it.product(xrange(n), sizes, mems, gains)])
@@ -3192,12 +3192,12 @@ def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(1,29,3)), gai
         posttime_trav[i,s,m,g] = r[7]
         posttime_base[i,s,m,g] = r[8]
 
-        data_lst[i][s][m][g] = r[9]
-        fps_trav[i][s][m][g] = r[10]
-        fps_base[i][s][m][g] = r[11]
+        # data_lst[i][s][m][g] = r[9]
+        # fps_trav[i][s][m][g] = r[10]
+        # fps_base[i][s][m][g] = r[11]
 
     return stable_trav,stable_base,unstable_trav,unstable_base, \
-            runtime_trav,runtime_base,posttime_trav,posttime_base, \
-            data_lst,fps_trav,fps_base
+            runtime_trav,runtime_base,posttime_trav,posttime_base #, \
+            # data_lst,fps_trav,fps_base
 
 
