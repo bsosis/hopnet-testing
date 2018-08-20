@@ -3180,8 +3180,8 @@ def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(1,29,3)), gai
     for r in res:
         i,s,m,g = r[0]
         s = sizes.index(s)
-        m = sizes.index(m)
-        g = sizes.index(g)
+        m = mems.index(m)
+        g = gains.index(g)
 
         stable_trav[i,s,m,g] = r[1]
         stable_base[i,s,m,g] = r[2]
