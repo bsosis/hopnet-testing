@@ -3112,52 +3112,59 @@ def test_mems_fps_tanh(n=1, size=100, mems=[1,3,5,7,9,11,13], gain=10, dynamic=F
     return res
 
 def test_grid_trav_vs_base_process(args):
-    i, s, m, g = args
-    np.random.seed()
+    try:
+        i, s, m, g = args
+        np.random.seed()
 
-    data = gd.get_random_discrete(s,m)
-    hn = chc.Hopnet(s, gain=g)
-    hn.learn(data)
+        data = gd.get_random_discrete(s,m)
+        hn = chc.Hopnet(s, gain=g)
+        hn.learn(data)
 
 
-    t_pre = time.clock()
-    t_fps, _ = rftpp.run_solver(hn.W*hn.gain, post_process=False)
-    t_post1 = time.clock()
-    t_fps, _ = rftpp.post_process_fxpts(hn.W*hn.gain, t_fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
-    t_post2 = time.clock()
+        t_pre = time.clock()
+        t_fps, _ = rftpp.run_solver(hn.W*hn.gain, post_process=False)
+        t_post1 = time.clock()
+        t_fps, _ = rftpp.post_process_fxpts(hn.W*hn.gain, t_fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+        t_post2 = time.clock()
 
-    t_runtime = t_post1 - t_pre
-    t_posttime = t_post2 - t_post1
+        t_runtime = t_post1 - t_pre
+        t_posttime = t_post2 - t_post1
 
-    b_pre = time.clock()
-    b_fps, _ = rftpp.baseline_solver(hn.W*hn.gain, timeout=t_runtime)
-    b_post1 = time.clock()
-    b_fps, _ = rftpp.post_process_fxpts(hn.W*hn.gain, b_fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
-    b_post2 = time.clock()
+        t_stable = 0
+        t_unstable = 0
+        for j in xrange(t_fps.shape[1]):
+            if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(t_fps[:,j])))):
+                t_stable += 1
+            else:
+                t_unstable += 1
 
-    b_runtime = b_post1 - b_pre
-    b_posttime = b_post2 - b_post1
+        del t_fps # To reduce memory overhead
 
-    t_stable = 0
-    t_unstable = 0
-    for j in xrange(t_fps.shape[1]):
-        if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(t_fps[:,j])))):
-            t_stable += 1
-        else:
-            t_unstable += 1
+        b_pre = time.clock()
+        b_fps, _ = rftpp.baseline_solver(hn.W*hn.gain, timeout=t_runtime)
+        b_post1 = time.clock()
+        b_fps, _ = rftpp.post_process_fxpts(hn.W*hn.gain, b_fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+        b_post2 = time.clock()
 
-    b_stable = 0
-    b_unstable = 0
-    for j in xrange(b_fps.shape[1]):
-        if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(b_fps[:,j])))):
-            b_stable += 1
-        else:
-            b_unstable += 1
+        b_runtime = b_post1 - b_pre
+        b_posttime = b_post2 - b_post1
 
-    return args, \
-        t_stable, b_stable, t_unstable, b_unstable, \
-        t_runtime, b_runtime, t_posttime, b_posttime #, \
-        # data, t_fps, b_fps
+        b_stable = 0
+        b_unstable = 0
+        for j in xrange(b_fps.shape[1]):
+            if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(b_fps[:,j])))):
+                b_stable += 1
+            else:
+                b_unstable += 1
+
+        return args, \
+            t_stable, b_stable, t_unstable, b_unstable, \
+            t_runtime, b_runtime, t_posttime, b_posttime #, \
+            # data, t_fps, b_fps
+    except Exception as e:
+        tb = traceback.format_exc()
+        np.save('tgtvb_subproc_{}_errortrace'.format(os.getpid()), [tb, repr(e)])
+        raise e
 
 def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(1,29,3)), gains=[1]+list(xrange(5,36,5))):
     stable_trav = np.zeros((n, len(sizes), len(mems), len(gains)))
