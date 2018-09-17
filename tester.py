@@ -3181,7 +3181,7 @@ def test_grid_trav_vs_base(n, sizes=[50,100,500], mems=list(xrange(1,29,3)), gai
     # fps_trav = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
     # fps_base = np.zeros((n, len(sizes), len(mems), len(gains))).tolist()
 
-    pool = mp.Pool(16)
+    pool = mp.Pool(4)
     res = pool.map(test_grid_trav_vs_base_process, [(i,s,m,g) for i,s,m,g in it.product(xrange(n), sizes, mems, gains)])
 
     for r in res:
